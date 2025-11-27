@@ -1,12 +1,10 @@
 import random
-import time
 
 import pandas as pd
 import streamlit as st
 from textblob import TextBlob
 
 # ================== CONFIG ================== #
-QUESTION_TIME_LIMIT = 45  # seconds per question
 
 HAPPY_GIFS = [
     "https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",
@@ -147,12 +145,10 @@ def pick_new_review():
     st.session_state.human_guess = None
     st.session_state.ai_guess = None
     st.session_state.ai_confidence = None
-    st.session_state.round_start_time = time.time()
-    st.session_state.time_up = False
 
 
 def init_game(total_rounds: int):
-    """Initialize a new game: scores, round, history, phase, timer."""
+    """Initialize a new game: scores, round, history, phase."""
     st.session_state.round = 1
     st.session_state.total_rounds = total_rounds
     st.session_state.human_score = 0
@@ -165,7 +161,6 @@ def init_game(total_rounds: int):
     st.session_state.ai_guess = None
     st.session_state.ai_confidence = None
     st.session_state.phase = "game"  # now we're in game phase
-    st.session_state.time_limit = QUESTION_TIME_LIMIT
     pick_new_review()
 
 
@@ -353,62 +348,6 @@ st.write("")
 
 if not st.session_state.game_over:
 
-    # TIMER
-    if "time_limit" not in st.session_state:
-        st.session_state.time_limit = QUESTION_TIME_LIMIT
-    if "round_start_time" not in st.session_state:
-        st.session_state.round_start_time = time.time()
-    if "time_up" not in st.session_state:
-        st.session_state.time_up = False
-
-    elapsed = time.time() - st.session_state.round_start_time
-    remaining = max(0, int(st.session_state.time_limit - elapsed))
-    if st.session_state.time_limit > 0:
-        timer_ratio = max(0.0, min(1.0, remaining / st.session_state.time_limit))
-    else:
-        timer_ratio = 0.0
-
-    timer_col1, timer_col2 = st.columns([3, 1])
-    with timer_col1:
-        st.progress(timer_ratio, text=f"⏳ Time left for this question: {remaining} seconds")
-    with timer_col2:
-        st.metric("⏱️ Time", f"{remaining}s")
-
-    # 🔁 Auto-refresh while timer is running
-    if (
-        remaining > 0
-        and not st.session_state.show_result
-        and not st.session_state.time_up
-    ):
-        time.sleep(1)
-        st.rerun()
-
-    # Time up auto-reveal
-    if remaining == 0 and not st.session_state.show_result and not st.session_state.time_up:
-        st.session_state.time_up = True
-        st.session_state.human_guess = "⏰ Time Up (No Answer)"
-
-        ai_label, ai_conf = ai_textblob_sentiment(st.session_state.current_review)
-        st.session_state.ai_guess = ai_label
-        st.session_state.ai_confidence = ai_conf
-
-        truth = st.session_state.current_truth
-        if ai_label == truth:
-            st.session_state.ai_score += 1
-
-        st.session_state.history.append(
-            {
-                "round": st.session_state.round,
-                "review": st.session_state.current_review,
-                "truth": truth,
-                "human": st.session_state.human_guess,
-                "ai": st.session_state.ai_guess,
-                "ai_conf": st.session_state.ai_confidence,
-            }
-        )
-
-        st.session_state.show_result = True
-
     # Bot asks the question
     st.markdown("### 💬 AI Guess Bot")
 
@@ -433,7 +372,7 @@ if not st.session_state.game_over:
     )
 
     # Let user answer
-    if not st.session_state.show_result and not st.session_state.time_up:
+    if not st.session_state.show_result:
         st.markdown(
             "<div class='chat-bubble-bot'>"
             "🤖 <b>AI Guess Bot:</b> What do you think this review feels like? "
@@ -511,7 +450,7 @@ if not st.session_state.game_over:
             if human == truth:
                 st.success(f"{human} (Correct!) 🎉")
             else:
-                st.error(f"{human} (Incorrect or Time Up) 😅")
+                st.error(f"{human} (Incorrect) 😅")
             st.markdown("</div>", unsafe_allow_html=True)
 
         with col_res2:
@@ -545,7 +484,6 @@ if not st.session_state.game_over:
             st.markdown(
                 "<div class='chat-bubble-bot'>"
                 "🤖 <b>AI Guess Bot:</b> Aww, not this time 😢 "
-                "Either you missed it or the timer got you. "
                 "But don't worry, the next one is yours!"
                 "</div>",
                 unsafe_allow_html=True,
@@ -567,6 +505,7 @@ if not st.session_state.game_over:
             else:
                 st.session_state.round += 1
                 pick_new_review()
+                st.session_state.show_result = False
             st.rerun()
 
 # ---------- GAME OVER ---------- #
@@ -662,7 +601,6 @@ if st.session_state.game_over:
             "show_result", "human_guess", "ai_guess",
             "ai_confidence", "current_index",
             "current_review", "current_truth",
-            "round_start_time", "time_up", "time_limit",
         ]
         for key in keys_to_clear:
             if key in st.session_state:
