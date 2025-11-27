@@ -6,7 +6,7 @@ import streamlit as st
 from textblob import TextBlob
 
 # ================== CONFIG ================== #
-QUESTION_TIME_LIMIT = 20  # seconds per question
+QUESTION_TIME_LIMIT = 45  # seconds per question
 
 HAPPY_GIFS = [
     "https://media.giphy.com/media/111ebonMs90YLu/giphy.gif",
@@ -218,7 +218,7 @@ if st.session_state.phase == "intro":
             "First, I need your reviews dataset so I can start asking questions."
             "</div>",
             unsafe_allow_html=True,
-    )
+        )
         st.session_state.phase = "upload"
         st.rerun()
 
@@ -373,6 +373,15 @@ if not st.session_state.game_over:
         st.progress(timer_ratio, text=f"⏳ Time left for this question: {remaining} seconds")
     with timer_col2:
         st.metric("⏱️ Time", f"{remaining}s")
+
+    # 🔁 Auto-refresh while timer is running
+    if (
+        remaining > 0
+        and not st.session_state.show_result
+        and not st.session_state.time_up
+    ):
+        time.sleep(1)
+        st.rerun()
 
     # Time up auto-reveal
     if remaining == 0 and not st.session_state.show_result and not st.session_state.time_up:
@@ -567,6 +576,23 @@ if st.session_state.game_over:
 
     human = st.session_state.human_score
     ai_score = st.session_state.ai_score
+    total = st.session_state.total_rounds
+
+    # Compute accuracy for title
+    if total > 0:
+        acc = human / total
+    else:
+        acc = 0.0
+
+    if acc < 0.34:
+        player_title = "Sentiment Rookie 🐣"
+        title_desc = "You're just warming up. With a bit more practice, you'll read reviews like a pro!"
+    elif acc < 0.67:
+        player_title = "Sentiment Analyst 📊"
+        title_desc = "Nice work! You understand sentiment pretty well. A little more effort and you'll be a legend."
+    else:
+        player_title = "Sentiment Legend 🔥"
+        title_desc = "Insane instincts! You read emotions like a true master. The AI is low-key scared of you now."
 
     if human > ai_score:
         msg = "You beat the AI Guess Bot! 🏆🔥"
@@ -579,12 +605,17 @@ if st.session_state.game_over:
     st.markdown(f"<div class='winner-text'>{msg}</div>", unsafe_allow_html=True)
     st.write("")
     st.markdown(
-        f"**Final Score:** 👤 Human **{human}** vs 🤖 AI **{ai_score}** · "
+        f"**Final Score:** 👤 Human **{human}** / {total} vs 🤖 AI **{ai_score}** · "
         f"Agreement rounds: **{st.session_state.agreement}**"
     )
     st.write("")
 
-    # 🎉 Winner dance GIFs reusing working pools
+    # 🏅 Player Title
+    st.markdown(f"### 🏅 Your Title: {player_title}")
+    st.markdown(f"*{title_desc}*")
+    st.write("")
+
+    # 🎉 Winner dance GIFs using working pools
     if human > ai_score:
         st.markdown(
             "<div class='chat-bubble-human'>"
